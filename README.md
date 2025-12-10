@@ -24,9 +24,9 @@ Creating a 256x256 bilevel image with every pixel black.
 
 ```rust
 #[macro_use]
-extern crate tiff_encoder;
-use tiff_encoder::prelude::*;
-use tiff_encoder::ifd::tags;
+extern crate tiff_forge;
+use tiff_forge::prelude::*;
+use tiff_forge::ifd::tags;
 
 fn main() {
     // 256*256/8 = 8192
@@ -59,6 +59,12 @@ fn main() {
 Creating a large, bilevel BigTIFF with every pixel black
 
 ```rust
+#[macro_use]
+extern crate tiff_forge;
+use tiff_forge::prelude::*;
+use tiff_forge::ifd::tags;
+
+fn main() {
     // 300000*300000/8 = 11250000000
     // The image data will have 11,250,000,000 bytes (~11.25GB) with 0 in every bit (each representing a
     // black pixel).
@@ -81,6 +87,7 @@ Creating a large, bilevel BigTIFF with every pixel black
             .with_entry(tags::StripOffsets, ByteBlock::single(image_data))
             .single() // This is the only Ifd in its IfdChain
     ).write_to("example_big.tif").unwrap();
+}
 ```
 
 
