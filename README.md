@@ -1,7 +1,7 @@
 tiff-forge
 ============
 
-[![Latest Version](https://img.shields.io/crates/v/tiff-encoder.svg)](https://crates.io/crates/tiff-forge)
+[![Latest Version](https://img.shields.io/crates/v/tiff-forge.svg)](https://crates.io/crates/tiff-forge)
 [![Rust Documentation](https://img.shields.io/badge/api-rustdoc-blue.svg)](https://docs.rs/tiff-forge/0/tiff_forge/)
 
 A fork of the [tiff-encoder](https://github.com/Goncalerta/tiff-encoder) crate which supports both [TIFF][TIFF] and BigTIFF files with the desired IFDs and entries.
