@@ -3,10 +3,99 @@
 use std::fs;
 use std::io;
 use std::io::Write;
+use std::ops::{Add, AddAssign, Mul, Rem};
 
 use byteorder::{BigEndian, LittleEndian, WriteBytesExt};
 
 use crate::ifd::values::Offsets;
+
+/// Trait for offset sizes (u32 for TIFF, u64 for BigTIFF).
+///
+/// This trait abstracts over the integer type used for file offsets,
+/// allowing the same code to work with both standard TIFF (32-bit offsets)
+/// and Big///*TIFF (64-bit offsets).
+pub trait OffsetSize:
+    Copy
+    + Default
+    + Add<Output = Self>
+    + AddAssign
+    + Mul<Output = Self>
+    + Rem<Output = Self>
+    + PartialOrd
+    + PartialEq
+    + std::fmt::Debug
+    + 'static
+{
+    /// The inline value threshold (4 for TIFF, 8 for BigTIFF).
+    const INLINE_THRESHOLD: Self;
+
+    /// Zero value.
+    const ZERO: Self;
+
+    /// One value.
+    const ONE: Self;
+
+    /// Two value (for word boundary checks).
+    const TWO: Self;
+
+    /// Checked addition that returns None on overflow.
+    fn checked_add(self, rhs: Self) -> Option<Self>;
+
+    /// Write this offset value to an EndianFile.
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()>;
+
+    /// Convert from usize (for lengths).
+    fn from_usize(val: usize) -> Self;
+
+    /// Convert to u64 for comparisons and calculations.
+    fn to_u64(self) -> u64;
+}
+
+impl OffsetSize for u32 {
+    const INLINE_THRESHOLD: Self = 4;
+    const ZERO: Self = 0;
+    const ONE: Self = 1;
+    const TWO: Self = 2;
+
+    fn checked_add(self, rhs: Self) -> Option<Self> {
+        u32::checked_add(self, rhs)
+    }
+
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_u32(self)
+    }
+
+    fn from_usize(val: usize) -> Self {
+        val as u32
+    }
+
+    fn to_u64(self) -> u64 {
+        self as u64
+    }
+}
+
+impl OffsetSize for u64 {
+    const INLINE_THRESHOLD: Self = 8;
+    const ZERO: Self = 0;
+    const ONE: Self = 1;
+    const TWO: Self = 2;
+
+    fn checked_add(self, rhs: Self) -> Option<Self> {
+        u64::checked_add(self, rhs)
+    }
+
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_u64(self)
+    }
+
+    fn from_usize(val: usize) -> Self {
+        val as u64
+    }
+
+    fn to_u64(self) -> u64 {
+        self
+    }
+}
 
 /// The byte order used within the TIFF file.
 ///
@@ -43,32 +132,40 @@ impl Endianness {
 ///
 /// Holds the number of bytes that were allocated, in order to
 /// calculate the needed offsets.
+///
+/// Generic over `O: OffsetSize` to support both TIFF (u32) and BigTIFF (u64).
 #[doc(hidden)]
-pub struct Cursor(u32);
-impl Cursor {
+pub struct Cursor<O: OffsetSize>(O);
+
+impl<O: OffsetSize> Cursor<O> {
     /// Creates a new `Cursor` with no bytes allocated.
     pub(crate) fn new() -> Self {
-        Cursor(0)
+        Cursor(O::ZERO)
     }
 
     /// Allocates a number of bytes to the `Cursor`.
     ///
     /// # Panics
     ///
-    /// The maximum size of a TIFF file is 2**32 bits. Attempting
-    /// to allocate more space than that will `panic`.
-    pub(crate) fn allocate(&mut self, n: u32) {
+    /// Attempting to allocate more space than the offset type allows will `panic`.
+    pub(crate) fn allocate(&mut self, n: O) {
         self.0 = match self.0.checked_add(n) {
             Some(val) => val,
-            None => panic!("Attempted to write a TIFF file bigger than 2**32 bytes."),
+            None => panic!("Attempted to write a TIFF file bigger than the offset type allows."),
         };
     }
 
     /// Returns the number of already allocated bytes.
-    pub(crate) fn allocated_bytes(&self) -> u32 {
+    pub(crate) fn allocated_bytes(&self) -> O {
         self.0
     }
 }
+
+/// Type alias for standard TIFF cursor (32-bit offsets).
+pub type TiffCursor = Cursor<u32>;
+
+/// Type alias for BigTIFF cursor (64-bit offsets).
+pub type BigTiffCursor = Cursor<u64>;
 
 /// Helper structure that provides convenience methods to write to
 /// a `fs::File`, being aware of the file's [`Endianness`].
@@ -77,7 +174,7 @@ impl Cursor {
 pub struct EndianFile {
     file: fs::File,
     byte_order: Endianness,
-    written_bytes: u32,
+    written_bytes: u64,
 }
 
 impl Into<fs::File> for EndianFile {
@@ -97,7 +194,7 @@ impl EndianFile {
     }
 
     /// Gets the number of written bytes to this file.
-    pub(crate) fn written_bytes(&self) -> u32 {
+    pub(crate) fn written_bytes(&self) -> u64 {
         self.written_bytes
     }
 }
@@ -126,7 +223,7 @@ impl EndianFile {
     ///
     /// [`Write::write_all`]: https://doc.rust-lang.org/std/io/trait.Write.html#method.write_all
     pub fn write_all_u8(&mut self, bytes: &[u8]) -> io::Result<()> {
-        self.written_bytes += bytes.len() as u32;
+        self.written_bytes += bytes.len() as u64;
         self.file.write_all(bytes)
     }
 
@@ -138,7 +235,7 @@ impl EndianFile {
     ///
     /// [`Write::write_all`]: https://doc.rust-lang.org/std/io/trait.Write.html#method.write_all
     pub fn write_u16(&mut self, n: u16) -> io::Result<()> {
-        self.written_bytes += 2;
+        self.written_bytes += 2 as u64;
         match self.byte_order {
             Endianness::II => {
                 self.file.write_u16::<LittleEndian>(n)?;
@@ -150,13 +247,6 @@ impl EndianFile {
         Ok(())
     }
 
-    /// Writes a u32 to the file.
-    ///
-    /// # Errors
-    ///
-    /// This method returns the same errors as [`Write::write_all`].
-    ///
-    /// [`Write::write_all`]: https://doc.rust-lang.org/std/io/trait.Write.html#method.write_all
     pub fn write_u32(&mut self, n: u32) -> io::Result<()> {
         self.written_bytes += 4;
         match self.byte_order {
@@ -165,6 +255,27 @@ impl EndianFile {
             }
             Endianness::MM => {
                 self.file.write_u32::<BigEndian>(n)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Writes a u64 to the file.
+    ///
+    /// # Errors
+    ///
+    /// This method returns the same errors as [`Write::write_all`].
+    ///
+    /// [`Write::write_all`]: https://doc.rust-lang.org/std/io/trait.Write.html#method.write_all
+    pub fn write_u64(&mut self, n: u64) -> io::Result<()> {
+        self.written_bytes += 8;
+        match self.byte_order {
+            Endianness::II => {
+                self.file.write_u64::<LittleEndian>(n)?;
+            }
+            Endianness::MM => {
+                self.file.write_u64::<BigEndian>(n)?;
             }
         }
         Ok(())
@@ -178,7 +289,7 @@ impl EndianFile {
     ///
     /// [`Write::write_all`]: https://doc.rust-lang.org/std/io/trait.Write.html#method.write_all
     pub fn write_i8(&mut self, n: i8) -> io::Result<()> {
-        self.written_bytes += 1;
+        self.written_bytes += 1 as u64;
         self.file.write_i8(n)
     }
 
@@ -190,7 +301,7 @@ impl EndianFile {
     ///
     /// [`Write::write_all`]: https://doc.rust-lang.org/std/io/trait.Write.html#method.write_all
     pub fn write_i16(&mut self, n: i16) -> io::Result<()> {
-        self.written_bytes += 2;
+        self.written_bytes += 2 as u64;
         match self.byte_order {
             Endianness::II => {
                 self.file.write_i16::<LittleEndian>(n)?;
@@ -210,7 +321,7 @@ impl EndianFile {
     ///
     /// [`Write::write_all`]: https://doc.rust-lang.org/std/io/trait.Write.html#method.write_all
     pub fn write_i32(&mut self, n: i32) -> io::Result<()> {
-        self.written_bytes += 4;
+        self.written_bytes += 4 as u64;
         match self.byte_order {
             Endianness::II => {
                 self.file.write_i32::<LittleEndian>(n)?;
@@ -230,7 +341,7 @@ impl EndianFile {
     ///
     /// [`Write::write_all`]: https://doc.rust-lang.org/std/io/trait.Write.html#method.write_all
     pub fn write_f32(&mut self, n: f32) -> io::Result<()> {
-        self.written_bytes += 4;
+        self.written_bytes += 4 as u64;
         match self.byte_order {
             Endianness::II => {
                 self.file.write_f32::<LittleEndian>(n)?;
@@ -296,9 +407,9 @@ impl EndianFile {
 /// struct U32Block(Vec<u32>);
 /// // Implement datablock functions
 /// impl Datablock for U32Block {
-///     fn size(&self) -> u32 {
+///     fn size(&self) -> u64 {
 ///         // Each u32 occupies 4 bytes.
-///         self.0.len() as u32 * 4
+///         self.0.len() as u64 * 4
 ///     }
 ///     fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
 ///         for val in self.0 {
@@ -343,7 +454,7 @@ pub trait Datablock {
     ///
     /// [`EndianFile`]: struct.EndianFile.html
     /// [`write_to(self, &mut EndianFile)`]: #method.write_to
-    fn size(&self) -> u32;
+    fn size(&self) -> u64;
 
     /// Writes this `Datablock` to an [`EndianFile`]. The number of bytes
     /// written must be exactly same number as returned by [`size(&self)`].
@@ -431,10 +542,29 @@ impl ByteBlock {
     pub fn single(block: Vec<u8>) -> Offsets<ByteBlock> {
         ByteBlock::offsets(vec![block])
     }
+
+    /// Constructs a BigTIFF-compatible [`Offsets`] of `ByteBlock`s from a vector of
+    /// vectors of bytes.
+    ///
+    /// Each vector of bytes represents one `ByteBlock`.
+    ///
+    /// [`Offsets`]: ifd/values/struct.Offsets.html
+    pub fn big_offsets(blocks: Vec<Vec<u8>>) -> Offsets<ByteBlock, u64> {
+        Offsets::new(blocks.into_iter().map(|block| ByteBlock(block)).collect())
+    }
+
+    /// Constructs a BigTIFF-compatible [`Offsets`] from a vector of bytes.
+    ///
+    /// This vector of bytes represents a single `ByteBlock`.
+    ///
+    /// [`Offsets`]: ifd/values/struct.Offsets.html
+    pub fn big_single(block: Vec<u8>) -> Offsets<ByteBlock, u64> {
+        ByteBlock::big_offsets(vec![block])
+    }
 }
 impl Datablock for ByteBlock {
-    fn size(&self) -> u32 {
-        self.0.len() as u32
+    fn size(&self) -> u64 {
+        self.0.len() as u64
     }
 
     fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
