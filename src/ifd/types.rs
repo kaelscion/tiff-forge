@@ -12,18 +12,20 @@ use std::convert::AsRef;
 use std::io;
 
 use crate::ifd::values::TiffTypeValues;
-use crate::write::EndianFile;
+use crate::write::{EndianFile, OffsetSize};
 
 /// A type of data for TIFF fields.
 ///
+/// Generic over `O: OffsetSize` to support both TIFF (u32) and BigTIFF (u64).
+///
 /// Other types that might come to exist can be easily implemented by
 /// implementing this trait.
-pub trait TiffType {
+pub trait TiffType<O: OffsetSize = u32> {
     /// The TIFF 16-bit code that identifies the type.
     fn id() -> u16;
 
     /// The number of bytes occupied by a single value of this type.
-    fn size() -> u32;
+    fn size() -> O;
 
     /// The function that writes this type to a given [`EndianFile`].
     ///
@@ -38,7 +40,7 @@ pub trait TiffType {
 }
 
 /// 8-bit unsigned integer.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct BYTE(pub u8);
 impl BYTE {
     /// Constructs a [`TiffTypeValues`] of `BYTE`s from a vector of
@@ -58,11 +60,22 @@ impl BYTE {
         TiffTypeValues::new(vec![BYTE(value)])
     }
 }
-impl TiffType for BYTE {
+impl TiffType<u32> for BYTE {
     fn id() -> u16 {
         1
     }
     fn size() -> u32 {
+        1
+    }
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_u8(self.0)
+    }
+}
+impl TiffType<u64> for BYTE {
+    fn id() -> u16 {
+        1
+    }
+    fn size() -> u64 {
         1
     }
     fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
@@ -83,7 +96,7 @@ macro_rules! BYTE {
 ///
 /// According the TIFF specification, the last byte
 /// of a field of `ASCII`s must be `NUL` (binary zero, '\0').
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct ASCII(u8);
 impl ASCII {
     /// Constructs a [`TiffTypeValues`] of `ASCII`s from a `&str`.
@@ -111,7 +124,7 @@ impl ASCII {
     /// [`TiffTypeValues`]: ../values/struct.TiffTypeValues.html
     pub fn values<T: AsRef<[u8]>>(values: T) -> TiffTypeValues<ASCII> {
         let values = values.as_ref();
-        if values.len() == 0 {
+        if values.is_empty() {
             panic!("Cannot create an empty instance of TiffTypeValues.")
         }
 
@@ -124,6 +137,57 @@ impl ASCII {
         }
         TiffTypeValues::new(values)
     }
+
+    /// Constructs a BigTIFF-compatible [`TiffTypeValues`] of `ASCII`s from a vector of bytes.
+    ///
+    /// If last value isn't already a `NUL` value, a `NUL` value will
+    /// be added automatically after the last value.
+    ///
+    /// [`TiffTypeValues`]: ../values/struct.TiffTypeValues.html
+    pub fn big_values<T: AsRef<[u8]>>(values: T) -> TiffTypeValues<ASCII, u64> {
+        let values = values.as_ref();
+        if values.is_empty() {
+            panic!("Cannot create an empty instance of TiffTypeValues.")
+        }
+
+        let add_nul = *values.last().unwrap() != 0;
+        let mut values: Vec<_> = values.iter().map(|&value| ASCII::new(value)).collect();
+        if add_nul {
+            values.push(ASCII::new(0))
+        }
+        TiffTypeValues::new(values)
+    }
+
+    /// Constructs a [`TiffTypeValues`] of `ASCII`s from a vector of bytes without modification.
+    ///
+    /// This method does NOT add a NUL terminator - it preserves the exact byte sequence.
+    /// Use this when copying ASCII data that already has proper termination.
+    ///
+    /// [`TiffTypeValues`]: ../values/struct.TiffTypeValues.html
+    pub fn raw_values<T: AsRef<[u8]>>(values: T) -> TiffTypeValues<ASCII> {
+        let values = values.as_ref();
+        if values.is_empty() {
+            panic!("Cannot create an empty instance of TiffTypeValues.")
+        }
+        let values: Vec<_> = values.iter().map(|&value| ASCII::new(value)).collect();
+        TiffTypeValues::new(values)
+    }
+
+    /// Constructs a BigTIFF-compatible [`TiffTypeValues`] of `ASCII`s from a vector of bytes
+    /// without modification.
+    ///
+    /// This method does NOT add a NUL terminator - it preserves the exact byte sequence.
+    /// Use this when copying ASCII data that already has proper termination.
+    ///
+    /// [`TiffTypeValues`]: ../values/struct.TiffTypeValues.html
+    pub fn big_raw_values<T: AsRef<[u8]>>(values: T) -> TiffTypeValues<ASCII, u64> {
+        let values = values.as_ref();
+        if values.is_empty() {
+            panic!("Cannot create an empty instance of TiffTypeValues.")
+        }
+        let values: Vec<_> = values.iter().map(|&value| ASCII::new(value)).collect();
+        TiffTypeValues::new(values)
+    }
     /// Creates an `ASCII`s value from a byte.
     ///
     /// # Panics
@@ -132,16 +196,30 @@ impl ASCII {
     /// `ASCII` from values bigger than 127 will `panic`.
     pub fn new(value: u8) -> ASCII {
         if value >= 128 {
-            panic!("Tried to create an ASCII encoded by the value {}.\n An ASCII value can only range from 0 to 127.", value);
+            panic!(
+                "Tried to create an ASCII encoded by the value {}.\n An ASCII value can only range from 0 to 127.",
+                value
+            );
         }
         ASCII(value)
     }
 }
-impl TiffType for ASCII {
+impl TiffType<u32> for ASCII {
     fn id() -> u16 {
         2
     }
     fn size() -> u32 {
+        1
+    }
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_u8(self.0)
+    }
+}
+impl TiffType<u64> for ASCII {
+    fn id() -> u16 {
+        2
+    }
+    fn size() -> u64 {
         1
     }
     fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
@@ -159,7 +237,7 @@ macro_rules! ASCII {
 }
 
 /// 16-bit (2-byte) unsigned integer.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct SHORT(pub u16);
 impl SHORT {
     /// Constructs a [`TiffTypeValues`] of `SHORTS`s from a vector of
@@ -167,6 +245,13 @@ impl SHORT {
     ///
     /// [`TiffTypeValues`]: ../values/struct.TiffTypeValues.html
     pub fn values<T: AsRef<[u16]>>(values: T) -> TiffTypeValues<SHORT> {
+        TiffTypeValues::new(values.as_ref().iter().map(|&value| SHORT(value)).collect())
+    }
+
+    /// Constructs a BigTIFF-compatible [`TiffTypeValues`] of `SHORT`s from a vector of `u16`.
+    ///
+    /// [`TiffTypeValues`]: ../values/struct.TiffTypeValues.html
+    pub fn big_values<T: AsRef<[u16]>>(values: T) -> TiffTypeValues<SHORT, u64> {
         TiffTypeValues::new(values.as_ref().iter().map(|&value| SHORT(value)).collect())
     }
 
@@ -179,12 +264,28 @@ impl SHORT {
     pub fn single(value: u16) -> TiffTypeValues<SHORT> {
         TiffTypeValues::new(vec![SHORT(value)])
     }
+
+    /// Constructs a BigTIFF-compatible [`TiffTypeValues`] consisting of a single `SHORT`.
+    pub fn big_single(value: u16) -> TiffTypeValues<SHORT, u64> {
+        TiffTypeValues::new(vec![SHORT(value)])
+    }
 }
-impl TiffType for SHORT {
+impl TiffType<u32> for SHORT {
     fn id() -> u16 {
         3
     }
     fn size() -> u32 {
+        2
+    }
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_u16(self.0)
+    }
+}
+impl TiffType<u64> for SHORT {
+    fn id() -> u16 {
+        3
+    }
+    fn size() -> u64 {
         2
     }
     fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
@@ -202,7 +303,7 @@ macro_rules! SHORT {
 }
 
 /// 32-bit (4-byte) unsigned integer.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct LONG(pub u32);
 impl LONG {
     /// Constructs a [`TiffTypeValues`] of `LONG`s from a vector of
@@ -210,6 +311,13 @@ impl LONG {
     ///
     /// [`TiffTypeValues`]: ../values/struct.TiffTypeValues.html
     pub fn values<T: AsRef<[u32]>>(values: T) -> TiffTypeValues<LONG> {
+        TiffTypeValues::new(values.as_ref().iter().map(|&value| LONG(value)).collect())
+    }
+
+    /// Constructs a BigTIFF-compatible [`TiffTypeValues`] of `LONG`s from a vector of `u32`.
+    ///
+    /// [`TiffTypeValues`]: ../values/struct.TiffTypeValues.html
+    pub fn big_values<T: AsRef<[u32]>>(values: T) -> TiffTypeValues<LONG, u64> {
         TiffTypeValues::new(values.as_ref().iter().map(|&value| LONG(value)).collect())
     }
 
@@ -222,8 +330,13 @@ impl LONG {
     pub fn single(value: u32) -> TiffTypeValues<LONG> {
         TiffTypeValues::new(vec![LONG(value)])
     }
+
+    /// Constructs a BigTIFF-compatible [`TiffTypeValues`] consisting of a single `LONG`.
+    pub fn big_single(value: u32) -> TiffTypeValues<LONG, u64> {
+        TiffTypeValues::new(vec![LONG(value)])
+    }
 }
-impl TiffType for LONG {
+impl TiffType<u32> for LONG {
     fn id() -> u16 {
         4
     }
@@ -234,9 +347,18 @@ impl TiffType for LONG {
         file.write_u32(self.0)
     }
 }
-/// Convenient macro to declare an IFD entry of [`LONG`] values.
-///
-/// [`LONG`]: ifd/types/struct.BYTE.html
+impl TiffType<u64> for LONG {
+    fn id() -> u16 {
+        4
+    }
+    fn size() -> u64 {
+        4
+    }
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_u32(self.0)
+    }
+}
+
 #[macro_export]
 macro_rules! LONG {
     ($($values: expr),+) => {
@@ -245,17 +367,17 @@ macro_rules! LONG {
 }
 
 /// Two LONGs representing, respectively, the numerator and the denominator of a fraction.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct RATIONAL {
-    pub numerator: u32,
-    pub denominator: u32,
+    pub numerator: u64,
+    pub denominator: u64,
 }
 impl RATIONAL {
     /// Constructs a [`TiffTypeValues`] of `RATIONAL`s from a vector of
-    /// pairs (numerator, denominator). Both must be `u32` values.
+    /// pairs (numerator, denominator). Both must be `u64` values.
     ///
     /// [`TiffTypeValues`]: ../values/struct.TiffTypeValues.html
-    pub fn values<T: AsRef<[(u32, u32)]>>(values: T) -> TiffTypeValues<RATIONAL> {
+    pub fn values<T: AsRef<[(u64, u64)]>>(values: T) -> TiffTypeValues<RATIONAL> {
         TiffTypeValues::new(
             values
                 .as_ref()
@@ -275,14 +397,14 @@ impl RATIONAL {
     /// field.
     ///
     /// [`TiffTypeValues`]: ../values/struct.TiffTypeValues.html
-    pub fn single(numerator: u32, denominator: u32) -> TiffTypeValues<RATIONAL> {
+    pub fn single(numerator: u64, denominator: u64) -> TiffTypeValues<RATIONAL> {
         TiffTypeValues::new(vec![RATIONAL {
             numerator,
             denominator,
         }])
     }
 }
-impl TiffType for RATIONAL {
+impl TiffType<u32> for RATIONAL {
     fn id() -> u16 {
         5
     }
@@ -290,8 +412,21 @@ impl TiffType for RATIONAL {
         8
     }
     fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
-        file.write_u32(self.numerator)?;
-        file.write_u32(self.denominator)?;
+        file.write_u32(self.numerator as u32)?;
+        file.write_u32(self.denominator as u32)?;
+        Ok(())
+    }
+}
+impl TiffType<u64> for RATIONAL {
+    fn id() -> u16 {
+        5
+    }
+    fn size() -> u64 {
+        8
+    }
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_u32(self.numerator as u32)?;
+        file.write_u32(self.denominator as u32)?;
         Ok(())
     }
 }
@@ -306,7 +441,7 @@ macro_rules! RATIONAL {
 }
 
 /// 8-bit signed (twos-complement) integer.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct SBYTE(pub i8);
 impl SBYTE {
     /// Constructs a [`TiffTypeValues`] of `SBYTE`s from a vector of
@@ -326,11 +461,22 @@ impl SBYTE {
         TiffTypeValues::new(vec![SBYTE(value)])
     }
 }
-impl TiffType for SBYTE {
+impl TiffType<u32> for SBYTE {
     fn id() -> u16 {
         6
     }
     fn size() -> u32 {
+        1
+    }
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_i8(self.0)
+    }
+}
+impl TiffType<u64> for SBYTE {
+    fn id() -> u16 {
+        6
+    }
+    fn size() -> u64 {
         1
     }
     fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
@@ -348,7 +494,7 @@ macro_rules! SBYTE {
 }
 
 /// 8-bit byte that may contain anything, depending on the definition of the field.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct UNDEFINED(pub u8);
 impl UNDEFINED {
     /// Constructs a [`TiffTypeValues`] of `UNDEFINED`s from a vector of
@@ -374,11 +520,22 @@ impl UNDEFINED {
         TiffTypeValues::new(vec![UNDEFINED(value)])
     }
 }
-impl TiffType for UNDEFINED {
+impl TiffType<u32> for UNDEFINED {
     fn id() -> u16 {
         7
     }
     fn size() -> u32 {
+        1
+    }
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_u8(self.0)
+    }
+}
+impl TiffType<u64> for UNDEFINED {
+    fn id() -> u16 {
+        7
+    }
+    fn size() -> u64 {
         1
     }
     fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
@@ -396,7 +553,7 @@ macro_rules! UNDEFINED {
 }
 
 /// 16-bit (2-byte) signed (twos-complement) integer.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct SSHORT(pub i16);
 impl SSHORT {
     /// Constructs a [`TiffTypeValues`] of `SSHORT`s from a vector of
@@ -417,11 +574,22 @@ impl SSHORT {
         TiffTypeValues::new(vec![SSHORT(value)])
     }
 }
-impl TiffType for SSHORT {
+impl TiffType<u32> for SSHORT {
     fn id() -> u16 {
         8
     }
     fn size() -> u32 {
+        2
+    }
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_i16(self.0)
+    }
+}
+impl TiffType<u64> for SSHORT {
+    fn id() -> u16 {
+        8
+    }
+    fn size() -> u64 {
         2
     }
     fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
@@ -439,7 +607,7 @@ macro_rules! SSHORT {
 }
 
 /// 32-bit (4-byte) signed (twos-complement) integer.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct SLONG(pub i32);
 impl SLONG {
     /// Constructs a [`TiffTypeValues`] of `SLONG`s from a vector of
@@ -460,11 +628,22 @@ impl SLONG {
         TiffTypeValues::new(vec![SLONG(value)])
     }
 }
-impl TiffType for SLONG {
+impl TiffType<u32> for SLONG {
     fn id() -> u16 {
         9
     }
     fn size() -> u32 {
+        4
+    }
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_i32(self.0)
+    }
+}
+impl TiffType<u64> for SLONG {
+    fn id() -> u16 {
+        9
+    }
+    fn size() -> u64 {
         4
     }
     fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
@@ -482,7 +661,7 @@ macro_rules! SLONG {
 }
 
 /// Two SLONGs representing, respectively, the numerator and the denominator of a fraction.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct SRATIONAL {
     pub numerator: i32,
     pub denominator: i32,
@@ -519,11 +698,24 @@ impl SRATIONAL {
         }])
     }
 }
-impl TiffType for SRATIONAL {
+impl TiffType<u32> for SRATIONAL {
     fn id() -> u16 {
         10
     }
     fn size() -> u32 {
+        8
+    }
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_i32(self.numerator)?;
+        file.write_i32(self.denominator)?;
+        Ok(())
+    }
+}
+impl TiffType<u64> for SRATIONAL {
+    fn id() -> u16 {
+        10
+    }
+    fn size() -> u64 {
         8
     }
     fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
@@ -543,7 +735,7 @@ macro_rules! SRATIONAL {
 }
 
 /// Single precision (4-byte) IEEE format.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct FLOAT(pub f32);
 impl FLOAT {
     /// Constructs a [`TiffTypeValues`] of `FLOAT`s from a vector of
@@ -564,11 +756,22 @@ impl FLOAT {
         TiffTypeValues::new(vec![FLOAT(value)])
     }
 }
-impl TiffType for FLOAT {
+impl TiffType<u32> for FLOAT {
     fn id() -> u16 {
         11
     }
     fn size() -> u32 {
+        4
+    }
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_f32(self.0)
+    }
+}
+impl TiffType<u64> for FLOAT {
+    fn id() -> u16 {
+        11
+    }
+    fn size() -> u64 {
         4
     }
     fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
@@ -586,7 +789,7 @@ macro_rules! FLOAT {
 }
 
 /// Double precision (8-byte) IEEE format.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct DOUBLE(pub f64);
 impl DOUBLE {
     /// Constructs a [`TiffTypeValues`] of `DOUBLE`s from a vector of
@@ -596,6 +799,14 @@ impl DOUBLE {
     pub fn values<T: AsRef<[f64]>>(values: T) -> TiffTypeValues<DOUBLE> {
         TiffTypeValues::new(values.as_ref().iter().map(|&value| DOUBLE(value)).collect())
     }
+
+    /// Constructs a BigTIFF-compatible [`TiffTypeValues`] of `DOUBLE`s from a vector of `f64`.
+    ///
+    /// [`TiffTypeValues`]: ../values/struct.TiffTypeValues.html
+    pub fn big_values<T: AsRef<[f64]>>(values: T) -> TiffTypeValues<DOUBLE, u64> {
+        TiffTypeValues::new(values.as_ref().iter().map(|&value| DOUBLE(value)).collect())
+    }
+
     /// Constructs a [`TiffTypeValues`] consisting of a single `DOUBLE`.
     ///
     /// In other words, marks this `DOUBLE` as the single value of its
@@ -605,12 +816,28 @@ impl DOUBLE {
     pub fn single(value: f64) -> TiffTypeValues<DOUBLE> {
         TiffTypeValues::new(vec![DOUBLE(value)])
     }
+
+    /// Constructs a BigTIFF-compatible [`TiffTypeValues`] consisting of a single `DOUBLE`.
+    pub fn big_single(value: f64) -> TiffTypeValues<DOUBLE, u64> {
+        TiffTypeValues::new(vec![DOUBLE(value)])
+    }
 }
-impl TiffType for DOUBLE {
+impl TiffType<u32> for DOUBLE {
     fn id() -> u16 {
         12
     }
     fn size() -> u32 {
+        8
+    }
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_f64(self.0)
+    }
+}
+impl TiffType<u64> for DOUBLE {
+    fn id() -> u16 {
+        12
+    }
+    fn size() -> u64 {
         8
     }
     fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
@@ -632,9 +859,9 @@ macro_rules! DOUBLE {
 /// This type is not supposed to be used directly. See [`OffsetsToIfds`].
 ///
 /// [`OffsetsToIfds`]: ../values/struct.OffsetsToIfds.html
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct IFD(pub(crate) u32);
-impl TiffType for IFD {
+impl TiffType<u32> for IFD {
     fn id() -> u16 {
         13
     }
@@ -643,5 +870,59 @@ impl TiffType for IFD {
     }
     fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
         file.write_u32(self.0)
+    }
+}
+
+/// 64-bit (8-byte) unsigned integer for BigTIFF.
+///
+/// This is the BigTIFF equivalent of LONG, used for offsets and byte counts.
+/// TIFF type ID 16 (LONG8).
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct LONG8(pub u64);
+impl LONG8 {
+    pub fn values(values: &[u64]) -> TiffTypeValues<LONG8, u64> {
+        TiffTypeValues::new(values.iter().map(|&value| LONG8(value)).collect())
+    }
+    pub fn single(value: u64) -> TiffTypeValues<LONG8, u64> {
+        TiffTypeValues::new(vec![LONG8(value)])
+    }
+}
+impl TiffType<u64> for LONG8 {
+    fn id() -> u16 {
+        16 // LONG8 type for BigTIFF
+    }
+    fn size() -> u64 {
+        8
+    }
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_u64(self.0)
+    }
+}
+
+/// 64-bit (8-byte) unsigned integer used exclusively to point to IFDs in BigTIFF.
+///
+/// This type is not supposed to be used directly. See [`OffsetsToIfds`].
+/// TIFF type ID 18 (IFD8).
+///
+/// [`OffsetsToIfds`]: ../values/struct.OffsetsToIfds.html
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct BIGIFD(pub u64);
+impl BIGIFD {
+    pub fn values(values: &[u64]) -> TiffTypeValues<BIGIFD, u64> {
+        TiffTypeValues::new(values.iter().map(|&value| BIGIFD(value)).collect())
+    }
+    pub fn single(value: u64) -> TiffTypeValues<BIGIFD, u64> {
+        TiffTypeValues::new(vec![BIGIFD(value)])
+    }
+}
+impl TiffType<u64> for BIGIFD {
+    fn id() -> u16 {
+        18 // IFD8 type for BigTIFF IFD pointers
+    }
+    fn size() -> u64 {
+        8
+    }
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        file.write_u64(self.0)
     }
 }

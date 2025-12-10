@@ -61,7 +61,7 @@ pub mod ifd;
 pub mod write;
 
 mod file;
-pub use file::TiffFile;
+pub use file::{BigTiffFile, TiffFile};
 
 /// Common imports that are necessary for almost every use of the `tiff_encoder`
 /// library.
@@ -101,11 +101,18 @@ pub use file::TiffFile;
 /// [`ifd::types`]: ../ifd/types/index.html
 pub mod prelude {
     #[doc(no_inline)]
+    pub use crate::file::BigTiffFile;
+    #[doc(no_inline)]
+    pub use crate::file::TiffFile;
+    #[doc(no_inline)]
     pub use crate::ifd::Ifd;
     #[doc(no_inline)]
     pub use crate::ifd::IfdChain;
     #[doc(no_inline)]
     pub use crate::write::ByteBlock;
-    #[doc(no_inline)]
-    pub use crate::TiffFile;
+
+    /// Type alias for BigTIFF IFD (64-bit offsets)
+    pub type BigIfd = crate::ifd::Ifd<u64>;
+    /// Type alias for BigTIFF IFD chain (64-bit offsets)
+    pub type BigIfdChain = crate::ifd::IfdChain<u64>;
 }
