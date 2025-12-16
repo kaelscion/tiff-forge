@@ -8,12 +8,12 @@ pub mod write;
 mod file;
 pub use file::{BigTiffFile, TiffFile};
 
-/// Common imports that are necessary for almost every use of the `tiff_encoder`
+/// Common imports that are necessary for almost every use of the `tiff_forge`
 /// library.
 ///
 /// # Usage
 /// ```
-/// use tiff_encoder::prelude::*;
+/// use tiff_forge::prelude::*;
 /// ```
 ///
 /// # Other common imports
@@ -22,8 +22,8 @@ pub use file::{BigTiffFile, TiffFile};
 /// included in the prelude to avoid polluting the user's namespace.
 ///
 /// ```
-/// use tiff_encoder::write; // Helpers to write data to the file, particularly `Datablock`
-/// use tiff_encoder::ifd::tags; // Constants for common tags in IFD entries
+/// use tiff_forge::write; // Helpers to write data to the file, particularly `Datablock`
+/// use tiff_forge::ifd::tags; // Constants for common tags in IFD entries
 /// ```
 ///
 /// Note that `macro_rules!` for using [`ifd::types`] cannot (unfortunately) be re-exported
@@ -32,10 +32,10 @@ pub use file::{BigTiffFile, TiffFile};
 /// ```
 /// // Either
 /// #[macro_use]
-/// extern crate tiff_encoder;
+/// extern crate tiff_forge;
 ///
 /// // Or
-/// use tiff_encoder::{
+/// use tiff_forge::{
 ///     ASCII, BYTE, DOUBLE, FLOAT, LONG, RATIONAL,
 ///     SBYTE, SHORT, SLONG, SRATIONAL, SSHORT, UNDEFINED
 /// };

@@ -26,8 +26,8 @@ impl TiffFile {
     /// Creating the simplest valid `TiffFile`: a single [`Ifd`] with only one entry.
     /// ```
     /// #[macro_use]
-    /// extern crate tiff_encoder;
-    /// use tiff_encoder::prelude::*;
+    /// extern crate tiff_forge;
+    /// use tiff_forge::prelude::*;
     ///
     /// # fn main() {
     /// let tiff_file = TiffFile::new(
@@ -58,9 +58,9 @@ impl TiffFile {
     /// building a `TiffFile`.
     /// ```
     /// #[macro_use]
-    /// extern crate tiff_encoder;
-    /// use tiff_encoder::prelude::*;
-    /// use tiff_encoder::write;
+    /// extern crate tiff_forge;
+    /// use tiff_forge::prelude::*;
+    /// use tiff_forge::write;
     ///
     /// # fn main() {
     /// let tiff_file = TiffFile::new(
@@ -85,8 +85,8 @@ impl TiffFile {
     /// Note that, in this example, `file` is a `fs::File`, not a `TiffFile`.
     /// ```
     /// #[macro_use]
-    /// extern crate tiff_encoder;
-    /// use tiff_encoder::prelude::*;
+    /// extern crate tiff_forge;
+    /// use tiff_forge::prelude::*;
     ///
     /// # fn main() {
     /// let file = TiffFile::new(

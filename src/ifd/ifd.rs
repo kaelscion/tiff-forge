@@ -150,8 +150,8 @@ impl<O: OffsetSize> Ifd<O> {
     ///
     /// ```
     /// #[macro_use]
-    /// extern crate tiff_encoder;
-    /// use tiff_encoder::prelude::*;
+    /// extern crate tiff_forge;
+    /// use tiff_forge::prelude::*;
     ///
     /// # fn main() {
     /// let ifd = Ifd::new()
