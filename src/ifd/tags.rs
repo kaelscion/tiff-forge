@@ -109,3 +109,5 @@ pub const ModelTiepoint: u16 = 0x8482;
 pub const GeoKeyDirectory: u16 = 0x87AF;
 pub const GeoDoubleParams: u16 = 0x87B0;
 pub const GeoAsciiParams: u16 = 0x87B1;
+pub const GdalMetadata: u16 = 0xA480;
+pub const GdalNoData: u16 = 0xA481;

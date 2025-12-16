@@ -899,6 +899,84 @@ impl TiffType<u64> for LONG8 {
     }
 }
 
+/// Helper to construct GDAL Metadata XML strings
+pub struct GdalMetadataBuilder {
+    items: Vec<GdalMetadata>,
+}
+
+pub struct GdalMetadata {
+    pub name: String,
+    pub value: String,
+    pub domain: Option<String>,
+    pub sample: Option<u32>,
+}
+
+impl GdalMetadata {
+    pub fn new(name: impl Into<String>, value: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            value: value.into(),
+            domain: None,
+            sample: None,
+        }
+    }
+
+    pub fn with_domain(mut self, domain: impl Into<String>) -> Self {
+        self.domain = Some(domain.into());
+        self
+    }
+
+    pub fn with_sample(mut self, sample: u32) -> Self {
+        self.sample = Some(sample);
+        self
+    }
+
+    fn to_xml(&self) -> String {
+        let mut attrs = format!("name=\"{}\"", self.name);
+        if let Some(ref domain) = self.domain {
+            attrs.push_str(&format!(" domain=\"{}\"", domain));
+        }
+        if let Some(sample) = self.sample {
+            attrs.push_str(&format!(" sample=\"{}\"", sample));
+        }
+        format!("<Item {}>{}</Item>", attrs, self.value)
+    }
+}
+
+impl GdalMetadataBuilder {
+    pub fn new() -> Self {
+        Self { items: Vec::new() }
+    }
+
+    pub fn add_item(mut self, item: GdalMetadata) -> Self {
+        self.items.push(item);
+        self
+    }
+
+    /// Build the XML string for standard TIFF
+    pub fn build(&self) -> TiffTypeValues<ASCII> {
+        let xml = self.to_xml();
+        ASCII::values(xml.as_bytes())
+    }
+
+    /// Build the XML string for BigTIFF
+    pub fn build_big(&self) -> TiffTypeValues<ASCII, u64> {
+        let xml = self.to_xml();
+        ASCII::big_values(xml.as_bytes())
+    }
+
+    fn to_xml(&self) -> String {
+        let items_xml: String = self.items.iter().map(|i| i.to_xml()).collect();
+        format!("<GDALMetadata>\n{}</GDALMetadata>", items_xml)
+    }
+}
+
+impl Default for GdalMetadataBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// 64-bit (8-byte) unsigned integer used exclusively to point to IFDs in BigTIFF.
 ///
 /// This type is not supposed to be used directly. See [`OffsetsToIfds`].
