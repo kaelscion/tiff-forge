@@ -7,9 +7,6 @@ on:
   release:
     types:
       - published
-permissions: # needed to interact with GitHub's OIDC Token endpoint.
-  id-token: write
-  contents: read
 
 jobs:
   build:
