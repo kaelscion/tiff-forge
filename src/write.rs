@@ -400,8 +400,8 @@ impl EndianFile {
 /// Creating a DataBlock for `Vec<u32>`:
 /// ```
 /// use std::io;
-/// use tiff_encoder::write::{Datablock, EndianFile};
-/// use tiff_encoder::ifd::values::Offsets;
+/// use tiff_forge::write::{Datablock, EndianFile};
+/// use tiff_forge::ifd::values::Offsets;
 ///
 /// // Create a block that wraps the u32 data.
 /// struct U32Block(Vec<u32>);
@@ -478,50 +478,6 @@ pub trait Datablock {
 /// Using a [`Datablock`], on the other hand, allows to make use
 /// of the functionality of an [`EndianFile`], so the data can be
 /// written without worrying about the endianness.
-///
-/// # Examples
-///
-/// Creating a ByteBlock from a `Vec<u8>`:
-/// ```
-/// use tiff_encoder::prelude::*;
-///
-/// // A vector holding arbitrary u8 data.
-/// // This is the data we want to store as a Byteblock.
-/// let data_8bits: Vec<u8> = vec![0; 65536];
-///
-/// // Create an Offsets of a single Byteblock from the buffer.
-/// // This is the value that can be used directly as an IFD entry value.
-/// let byte_block = ByteBlock::single(data_8bits);
-/// ```
-///
-/// Creating a ByteBlock from a `Vec<u32>`:
-/// ```
-/// extern crate byteorder;
-/// // Crate byteorder will be used to write 32-bit information in a 8-bit buffer.
-/// use byteorder::{LittleEndian, WriteBytesExt};
-/// use tiff_encoder::prelude::*;
-///
-///
-/// // A vector holding arbitrary u32 data.
-/// // This is the data we want to store as a Byteblock.
-/// let data_32bits: Vec<u32> = vec![0; 65536];
-///
-/// // First, let's store the data in a u8 buffer.
-/// let mut image_bytes = Vec::with_capacity(262144); // 65536*4 (each u32 has a size of 4 bytes)
-/// for val in data_32bits {
-///     // A little endian TIFF file is assumed in this example.
-///     image_bytes.write_u32::<LittleEndian>(val).unwrap();
-/// }
-///
-/// // Create an Offsets of a single Byteblock from the buffer.
-/// // This is the value that can be used directly as an IFD entry value.
-/// let byte_block = ByteBlock::single(image_bytes);
-/// ```
-///
-///
-/// [`Datablock`]: trait.Datablock.html
-/// [`EndianFile`]: struct.EndianFile.html
-/// [`Endianness`]: enum.Endianness.html
 pub struct ByteBlock(pub Vec<u8>);
 impl ByteBlock {
     /// Constructs an [`Offsets`] of `ByteBlock`s from a vector of

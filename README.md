@@ -38,14 +38,11 @@ fn main() {
         Ifd::new()
             .with_entry(tags::PhotometricInterpretation, SHORT![1]) // Black is zero
             .with_entry(tags::Compression, SHORT![1]) // No compression
-
             .with_entry(tags::ImageLength, LONG![256])
             .with_entry(tags::ImageWidth, LONG![256])
-
             .with_entry(tags::ResolutionUnit, SHORT![1]) // No resolution unit
             .with_entry(tags::XResolution, RATIONAL![(1, 1)])
             .with_entry(tags::YResolution, RATIONAL![(1, 1)])
-
             .with_entry(tags::RowsPerStrip, LONG![256]) // One strip for the whole image
             .with_entry(tags::StripByteCounts, LONG![8192])
             .with_entry(tags::StripOffsets, ByteBlock::single(image_data))
@@ -63,6 +60,7 @@ Creating a large, bilevel BigTIFF with every pixel black
 extern crate tiff_forge;
 use tiff_forge::prelude::*;
 use tiff_forge::ifd::tags;
+use tiff_forge::ifd::types::{LONG, LONG8};
 
 fn main() {
     // 300000*300000/8 = 11250000000
@@ -74,17 +72,14 @@ fn main() {
         BigIfd::new()
             .with_entry(tags::PhotometricInterpretation, SHORT![1]) // Black is zero
             .with_entry(tags::Compression, SHORT![1]) // No compression
-
             .with_entry(tags::ImageLength, LONG![300000])
             .with_entry(tags::ImageWidth, LONG![300000])
-
             .with_entry(tags::ResolutionUnit, SHORT![1]) // No resolution unit
             .with_entry(tags::XResolution, RATIONAL![(1, 1)])
             .with_entry(tags::YResolution, RATIONAL![(1, 1)])
-
-            .with_entry(tags::RowsPerStrip, LONG![300000]) // One strip for the whole image
-            .with_entry(tags::StripByteCounts, LONG![11250000000])
-            .with_entry(tags::StripOffsets, ByteBlock::single(image_data))
+            .with_entry(tags::RowsPerStrip, LONG![300000]) 
+            .with_entry(tags::StripByteCounts, LONG8::single(11250000000)) // One strip for the whole image
+            .with_entry(tags::StripOffsets, ByteBlock::big_single(image_data))
             .single() // This is the only Ifd in its IfdChain
     ).write_to("example_big.tif").unwrap();
 }
