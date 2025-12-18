@@ -359,6 +359,9 @@ impl TiffType<u64> for LONG {
     }
 }
 
+/// Convenient macro to declare an IFD entry of 32-bit [`LONG`] values.
+///
+/// [`LONG`]: ifd/types/struct.LONG.html
 #[macro_export]
 macro_rules! LONG {
     ($($values: expr),+) => {
@@ -899,11 +902,35 @@ impl TiffType<u64> for LONG8 {
     }
 }
 
-/// Helper to construct GDAL Metadata XML strings
-pub struct GdalMetadataBuilder {
-    items: Vec<GdalMetadata>,
+/// Convenient macro to declare an IFD entry of 64-bit [`LONG8`] values.
+///
+/// [`LONG8`]: ifd/types/struct.LONG8.html
+#[macro_export]
+macro_rules! LONG8 {
+    ($($values: expr),+) => {
+        $crate::ifd::values::TiffTypeValues::new(vec![$($crate::ifd::types::LONG8($values)),+])
+    };
 }
 
+/// Storage struct for GDAL-specific metadata
+/// 
+/// GDAL metadata is stored as a series of xml tags in the file.
+/// This struct represents a single tag in the XML. 
+/// 
+/// **Note:** This struct is not meant to be used directly. It is used by the [`GdalMetadataBuilder`] to construct the XML string(s)
+/// for the GDAL tags you want to add.
+/// 
+/// [`GdalMetadataBuilder`]: ifd/types/struct.GdalMetadataBuilder.html
+/// 
+/// # Examples
+/// 
+/// ```
+/// use tiff_forge::ifd::types::GdalMetadata;
+/// 
+/// let metadata = GdalMetadata::new("OVERVIEW_RESAMPLING", "nearest");
+///
+/// let resampling_xml = GdalMetadata::new("OVERVIEW_RESAMPLING", "nearest").to_xml();
+/// ```
 pub struct GdalMetadata {
     pub name: String,
     pub value: String,
@@ -931,7 +958,7 @@ impl GdalMetadata {
         self
     }
 
-    fn to_xml(&self) -> String {
+    pub fn to_xml(&self) -> String {
         let mut attrs = format!("name=\"{}\"", self.name);
         if let Some(ref domain) = self.domain {
             attrs.push_str(&format!(" domain=\"{}\"", domain));
@@ -941,6 +968,35 @@ impl GdalMetadata {
         }
         format!("<Item {}>{}</Item>", attrs, self.value)
     }
+}
+
+/// Helper to construct GDAL Metadata XML strings
+/// 
+/// Builder struct for adding GDAL-specific metadata to a TIFF or
+/// BigTIFF file.
+/// 
+/// # TIFF Example
+/// 
+/// ```
+/// use tiff_forge::ifd::types::{GdalMetadata, GdalMetadataBuilder};
+/// 
+/// let builder = GdalMetadataBuilder::new();
+/// let metadata = builder
+///     .add_item(GdalMetadata::new("OVERVIEW_RESAMPLING", "nearest"))
+///     .build();
+/// ```
+/// # BigTIFF Example
+/// 
+/// ```
+/// use tiff_forge::ifd::types::{GdalMetadata, GdalMetadataBuilder};
+/// 
+/// let builder = GdalMetadataBuilder::new();
+/// let metadata = builder
+///     .add_item(GdalMetadata::new("OVERVIEW_RESAMPLING", "nearest"))
+///     .build_big();
+/// ```
+pub struct GdalMetadataBuilder {
+    items: Vec<GdalMetadata>,
 }
 
 impl GdalMetadataBuilder {
