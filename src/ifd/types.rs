@@ -925,6 +925,8 @@ macro_rules! LONG8 {
 /// # Examples
 /// 
 /// ```
+/// use tiff_forge::ifd::types::GdalMetadata;
+/// 
 /// let metadata = GdalMetadata::new("OVERVIEW_RESAMPLING", "nearest");
 ///
 /// let resampling_xml = GdalMetadata::new("OVERVIEW_RESAMPLING", "nearest").to_xml();
@@ -956,7 +958,7 @@ impl GdalMetadata {
         self
     }
 
-    fn to_xml(&self) -> String {
+    pub fn to_xml(&self) -> String {
         let mut attrs = format!("name=\"{}\"", self.name);
         if let Some(ref domain) = self.domain {
             attrs.push_str(&format!(" domain=\"{}\"", domain));
@@ -976,6 +978,8 @@ impl GdalMetadata {
 /// # TIFF Example
 /// 
 /// ```
+/// use tiff_forge::ifd::types::{GdalMetadata, GdalMetadataBuilder};
+/// 
 /// let builder = GdalMetadataBuilder::new();
 /// let metadata = builder
 ///     .add_item(GdalMetadata::new("OVERVIEW_RESAMPLING", "nearest"))
@@ -984,6 +988,8 @@ impl GdalMetadata {
 /// # BigTIFF Example
 /// 
 /// ```
+/// use tiff_forge::ifd::types::{GdalMetadata, GdalMetadataBuilder};
+/// 
 /// let builder = GdalMetadataBuilder::new();
 /// let metadata = builder
 ///     .add_item(GdalMetadata::new("OVERVIEW_RESAMPLING", "nearest"))
