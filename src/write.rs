@@ -528,3 +528,45 @@ impl Datablock for ByteBlock {
         Ok(())
     }
 }
+
+/// [`Datablock`] that consists of a list of f32 values.
+///
+/// Used for storing floating-point image data (e.g., scientific imagery, HDR, elevation data).
+/// Endianness is handled automatically by [`EndianFile`].
+pub struct FloatBlock(pub Vec<f32>);
+
+impl FloatBlock {
+    /// Constructs an [`Offsets`] of `FloatBlock`s from a vector of
+    /// vectors of f32 values.
+    pub fn offsets(blocks: Vec<Vec<f32>>) -> Offsets<FloatBlock> {
+        Offsets::new(blocks.into_iter().map(FloatBlock).collect())
+    }
+
+    /// Constructs an [`Offsets`] from a vector of f32 values (single block).
+    pub fn single(block: Vec<f32>) -> Offsets<FloatBlock> {
+        FloatBlock::offsets(vec![block])
+    }
+
+    /// Constructs a BigTIFF-compatible [`Offsets`] of `FloatBlock`s.
+    pub fn big_offsets(blocks: Vec<Vec<f32>>) -> Offsets<FloatBlock, u64> {
+        Offsets::new(blocks.into_iter().map(FloatBlock).collect())
+    }
+
+    /// Constructs a BigTIFF-compatible [`Offsets`] from a single block.
+    pub fn big_single(block: Vec<f32>) -> Offsets<FloatBlock, u64> {
+        FloatBlock::big_offsets(vec![block])
+    }
+}
+
+impl Datablock for FloatBlock {
+    fn size(&self) -> u64 {
+        self.0.len() as u64 * 4  // f32 = 4 bytes
+    }
+
+    fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
+        for val in self.0 {
+            file.write_f32(val)?;
+        }
+        Ok(())
+    }
+}
