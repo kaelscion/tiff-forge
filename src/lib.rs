@@ -57,6 +57,8 @@ pub mod prelude {
     pub use crate::write::ByteBlock;
     #[doc(no_inline)]
     pub use crate::write::FloatBlock;
+    #[doc(no_inline)]
+    pub use crate::write::DoubeBlock;
 
     /// Type alias for BigTIFF IFD (64-bit offsets)
     pub type BigIfd = crate::ifd::Ifd<u64>;
