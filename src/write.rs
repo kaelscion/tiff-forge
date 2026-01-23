@@ -603,7 +603,7 @@ impl Datablock for DoubeBlock {
 
     fn write_to(self, file: &mut EndianFile) -> io::Result<()> {
         for val in self.0 {
-            file.write_f32(val)?;
+            file.write_f64(val)?;
         }
         Ok(())
     }
