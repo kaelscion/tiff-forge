@@ -571,32 +571,32 @@ impl Datablock for FloatBlock {
     }
 }
 
-pub struct DoubeBlock(pub Vec<f64>);
+pub struct DoubleBlock(pub Vec<f64>);
 
-impl DoubeBlock {
-    /// Constructs an [`Offsets`] of `DoubeBlock`s from a vector of
+impl DoubleBlock {
+    /// Constructs an [`Offsets`] of `DoubleBlock`s from a vector of
     /// vectors of f32 values.
-    pub fn offsets(blocks: Vec<Vec<f64>>) -> Offsets<DoubeBlock> {
-        Offsets::new(blocks.into_iter().map(DoubeBlock).collect())
+    pub fn offsets(blocks: Vec<Vec<f64>>) -> Offsets<DoubleBlock> {
+        Offsets::new(blocks.into_iter().map(DoubleBlock).collect())
     }
 
     /// Constructs an [`Offsets`] from a vector of f64 values (single block).
-    pub fn single(block: Vec<f64>) -> Offsets<DoubeBlock> {
-        DoubeBlock::offsets(vec![block])
+    pub fn single(block: Vec<f64>) -> Offsets<DoubleBlock> {
+        DoubleBlock::offsets(vec![block])
     }
 
-    /// Constructs a BigTIFF-compatible [`Offsets`] of `DoubeBlock`s.
-    pub fn big_offsets(blocks: Vec<Vec<f64>>) -> Offsets<DoubeBlock, u64> {
-        Offsets::new(blocks.into_iter().map(DoubeBlock).collect())
+    /// Constructs a BigTIFF-compatible [`Offsets`] of `DoubleBlock`s.
+    pub fn big_offsets(blocks: Vec<Vec<f64>>) -> Offsets<DoubleBlock, u64> {
+        Offsets::new(blocks.into_iter().map(DoubleBlock).collect())
     }
 
     /// Constructs a BigTIFF-compatible [`Offsets`] from a single block.
-    pub fn big_single(block: Vec<f64>) -> Offsets<DoubeBlock, u64> {
-        DoubeBlock::big_offsets(vec![block])
+    pub fn big_single(block: Vec<f64>) -> Offsets<DoubleBlock, u64> {
+        DoubleBlock::big_offsets(vec![block])
     }
 }
 
-impl Datablock for DoubeBlock {
+impl Datablock for DoubleBlock {
     fn size(&self) -> u64 {
         self.0.len() as u64 * 8  // f64 = 8 bytes
     }
